@@ -95,7 +95,7 @@ Always address the user with formal respect (e.g., 'Sir,' 'Madam,' or their pref
 
 # --- ElevenLabs (TTS) ----------------------------------------------------
 # Find voice IDs: https://api.elevenlabs.io/v1/voices
-ELEVENLABS_VOICE_ID = "NFG5qt843uXKj4pFvR7C"  # e.g. "Rachel"
+ELEVENLABS_VOICE_ID = "4tRn1lSkEn13EVTuqb0g"  # e.g. "Rachel"
 
 # --- Camera (Picamera2 / IMX708) ----------------------------------------
 # Set to False to run in audio-only mode when no camera is attached.

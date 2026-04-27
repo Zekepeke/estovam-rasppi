@@ -1,7 +1,7 @@
 # Multimodal Voice Assistant — Raspberry Pi 5 + RUBIK Pi 3
 
-A low-latency voice + vision assistant pipeline running on Raspberry Pi 5 with a RUBIK Pi 3 (Qualcomm QCS6490) as an AI coprocessor.  
-Speaks, listens, and **sees** — STT and LLM inference offloaded to the RUBIK Pi 3, TTS via ElevenLabs, vision via a 12 MP autofocus camera.
+A low-latency voice + vision assistant pipeline running on Raspberry Pi 5 with a RUBIK Pi 3 (Qualcomm QCS6490, Adreno 643 GPU) as an AI coprocessor.  
+Speaks, listens, and **sees** — STT runs locally on Pi 5 via faster-whisper, LLM via Gemini, TTS via Orpheus-3B on the RUBIK Pi 3, vision via a 12 MP autofocus camera.
 
 ---
 
@@ -12,7 +12,7 @@ Speaks, listens, and **sees** — STT and LLM inference offloaded to the RUBIK P
 | Component | Model | Interface |
 |---|---|---|
 | Single-board computer | Raspberry Pi 5 (4 GB / 8 GB) | — |
-| AI Coprocessor | RUBIK Pi 3 (Qualcomm QCS6490) | Ethernet/Wi-Fi |
+| AI Coprocessor | RUBIK Pi 3 (Qualcomm QCS6490, Adreno 643 GPU) | Ethernet/Wi-Fi |
 | Microphone array | ReSpeaker Mic Array v3.0 | USB |
 | Speaker | Amazon Basics USB-powered speaker | 3.5 mm (ReSpeaker jack) |
 | Camera | Arducam IMX708 (Camera Module 3) — 12 MP, Autofocus | 15–22 pin FFC MIPI CSI-2 |
@@ -27,9 +27,9 @@ Speaks, listens, and **sees** — STT and LLM inference offloaded to the RUBIK P
 | Wake word | `openwakeword` | Fully local on Pi 5 — no API key, no cloud |
 | Audio I/O | `sounddevice` | Direct ALSA access via libportaudio |
 | Camera | `picamera2` | Official libcamera Python wrapper for Pi 5 |
-| Speech-to-text | `faster-whisper` on RUBIK Pi 3 | Remote HTTP — int8 Whisper on QCS6490 NPU |
-| LLM | Phi-3 Mini (Dolphin) via `llama-server` on RUBIK Pi 3 | Remote HTTP — OpenAI-compatible endpoint |
-| Text-to-speech | `elevenlabs` | Streaming PCM → sounddevice playback |
+| Speech-to-text | `faster-whisper` on Pi 5 | Local in-process — int8 Whisper base.en on ARM Cortex-A76 |
+| LLM | Google Gemini (`gemini-2.5-flash`) | Cloud — handles both vision and text queries |
+| Text-to-speech | Orpheus-3B on RUBIK Pi 3 (port 8081) | SNAC codec, Adreno 643 GPU; 24 kHz mono WAV |
 
 ### Execution Flow
 
@@ -58,25 +58,25 @@ Speaks, listens, and **sees** — STT and LLM inference offloaded to the RUBIK P
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  3. TRANSCRIBE  (RUBIK Pi 3 — Qualcomm QCS6490)             │
-│     Pi 5 → POST /transcribe (raw WAV bytes)                 │
-│     faster-whisper on RUBIK Pi 3 → JSON {"transcript":"…"}  │
+│  3. TRANSCRIBE  (Raspberry Pi 5 — local)                    │
+│     faster-whisper base.en int8 runs in-process             │
+│     → transcript string (no network call)                   │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  4. LLM REQUEST  (RUBIK Pi 3 — Qualcomm QCS6490)            │
-│     Pi 5 → POST /v1/chat/completions (OpenAI-compat SSE)    │
-│     Phi-3 Mini Q4 via llama-server                          │
-│       messages: [system, history…, user transcript]         │
+│  4. LLM REQUEST  (Google Gemini — cloud)                    │
+│     Pi 5 → Gemini 2.5 Flash (vision + text)                 │
+│       messages: [system, history…, image, user transcript]  │
 │     → streaming token generator (SSE)                       │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  5. STREAMING TTS  (Raspberry Pi 5 + ElevenLabs cloud)      │
-│     Tokens → sentence buffer → ElevenLabs Turbo v2.5 →      │
-│     PCM 16 kHz → sounddevice playback                       │
+│  5. STREAMING TTS  (RUBIK Pi 3 — Orpheus-3B)                │
+│     Tokens → sentence buffer →                              │
+│     POST http://192.168.4.20:8081/synthesize →              │
+│     WAV 24 kHz → sounddevice playback                       │
 │     (first audio plays before LLM finishes generating)      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -91,8 +91,28 @@ Speaks, listens, and **sees** — STT and LLM inference offloaded to the RUBIK P
   moment the camera grabs its frame. Neither blocks the other.
 - **No disk I/O.** The captured image is held in a `BytesIO` buffer and sent
   directly to Gemini as inline base64 — zero filesystem overhead.
-- **Streaming LLM + TTS.** ElevenLabs begins synthesising the first sentence
+- **Local STT.** faster-whisper runs in-process on the Pi 5, eliminating the
+  HTTP round-trip to the RUBIK Pi 3 and saving ~50 ms per turn.
+- **Streaming LLM + TTS.** Orpheus begins synthesising the first sentence
   while Gemini is still generating the rest.
+
+---
+
+## Known Performance
+
+| Stage | Approximate latency |
+|---|---|
+| Wake word → audio capture | Instant (openwakeword is always listening) |
+| STT — Whisper base.en int8 on Pi 5 | ~1–2 s for a typical utterance |
+| LLM time-to-first-token (Gemini 2.5 Flash) | ~0.5–1 s |
+| LLM generation | ~100 tokens/s (cloud) |
+| TTS time-to-first-audio (Orpheus-3B on Adreno 643) | **~30–60 s for first sentence** ← current bottleneck |
+| TTS subsequent sentences | Overlap with LLM generation |
+
+> **TTS latency note:** Orpheus-3B generates tokens at approximately 4 t/s on the
+> Adreno 643 GPU. A short sentence (~20 tokens) takes ~5 s; a longer one can
+> take 30–60 s. This is the primary known limitation of the current pipeline.
+> Reducing sentence length via the system prompt helps.
 
 ---
 
@@ -154,8 +174,8 @@ pip install \
   sounddevice \
   numpy \
   openwakeword \
+  faster-whisper \
   requests \
-  elevenlabs \
   python-dotenv \
   picamera2        # skip if installed via apt + system-site-packages
 ```
@@ -176,11 +196,9 @@ Edit `.env.local`:
 
 ```dotenv
 GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-ELEVENLABS_API_KEY="YOUR_ELEVENLABS_API_KEY"
 ```
 
 - Gemini key: <https://aistudio.google.com/apikey>
-- ElevenLabs key: <https://elevenlabs.io/app/settings/api-keys>
 
 ### 6. (Optional) Verify camera
 
@@ -196,7 +214,7 @@ python3 -c "from picamera2 import Picamera2; c = Picamera2(); print(c.camera_pro
 
 ```bash
 source .venv/bin/activate
-python voice_assistant.py
+python main.py
 ```
 
 Say **"Hey Jarvis"** to activate.
@@ -205,62 +223,23 @@ Say **"Hey Jarvis"** to activate.
 
 ## RUBIK Pi 3 Setup
 
-The RUBIK Pi 3 (Qualcomm QCS6490) acts as the AI coprocessor, running both the
-STT and LLM inference servers. The Pi 5 reaches it over the local network.
-
-**Assumed IP address:** `192.168.4.28`  
+The RUBIK Pi 3 (Qualcomm QCS6490, Adreno 643 GPU) acts as the AI coprocessor,
+running the LLM and TTS inference servers. The Pi 5 reaches it at `192.168.4.20`.  
 To change this, update `RUBIKPI_HOST` in [config.py](config.py).
 
-### STT server — faster-whisper HTTP
-
-Runs on port **8000**. Accepts raw WAV bytes, returns a JSON transcript.
-
-```bash
-# On the RUBIK Pi 3
-pip install faster-whisper flask
-
-python3 - <<'EOF'
-from flask import Flask, request, jsonify
-import tempfile, os
-from faster_whisper import WhisperModel
-
-app = Flask(__name__)
-model = WhisperModel("base.en", device="cpu", compute_type="int8")
-
-@app.route("/transcribe", methods=["POST"])
-def transcribe():
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        f.write(request.data)
-        tmp = f.name
-    try:
-        segments, _ = model.transcribe(tmp, language="en")
-        text = " ".join(s.text for s in segments).strip()
-    finally:
-        os.unlink(tmp)
-    return jsonify({"transcript": text})
-
-app.run(host="0.0.0.0", port=8000)
-EOF
-```
-
-**Endpoint summary:**
-
-| Method | Path | Body | Response |
-|---|---|---|---|
-| POST | `/transcribe` | raw WAV bytes (`Content-Type: audio/wav`) | `{"transcript": "..."}` |
-
-### LLM server — llama-server (Phi-3 Mini Q4)
+### LLM server — llama-server (Dolphin 3.0 Llama 3.2 3B Q4_K_M)
 
 Runs on port **8080** with an OpenAI-compatible API.
 
 ```bash
-# On the RUBIK Pi 3 — download llama.cpp and a Phi-3 Mini GGUF model first
+# On the RUBIK Pi 3 — llama.cpp must be compiled with QNN/Adreno GPU support
 cd ~/dev/llm/llama.cpp
 ./build/bin/llama-server \
-  -m ~/dev/llm/models/Dolphin3.0-Llama3.1-8B-Q4_K_M.gguf \
+  -m ~/dev/llm/models/Dolphin3.0-Llama3.2-3B-Q4_K_M.gguf \
   --host 0.0.0.0 \
   --port 8080 \
-  --ctx-size 2048
+  --ctx-size 8192 \
+  --chat-template chatml
 ```
 
 **Endpoint summary:**
@@ -270,25 +249,68 @@ cd ~/dev/llm/llama.cpp
 | POST | `/v1/chat/completions` | OpenAI Chat Completions JSON (`"stream": true`) | SSE token stream |
 | GET  | `/health` | — | `{"status": "ok"}` |
 
+> **Note:** Dolphin is set up and running but not yet used directly by the Pi 5
+> orchestrator — the current pipeline sends all queries to Gemini (for vision
+> support). See [Architecture Roadmap](#architecture-roadmap) for next steps.
+
+### TTS server — Orpheus-3B (port 8081)
+
+Runs on port **8081**. This server is being built separately. It accepts a
+synthesis request and returns 24 kHz mono PCM WAV bytes.
+
+**Expected endpoint:**
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/synthesize` | `{"text": "...", "speaker": "tara"}` | WAV bytes (`audio/wav`) |
+
+**Speaker options:** `tara`, `leah`, `jess`, `mia`, `zoe`, `leo`, `dan`, `zac`
+
+The server uses Orpheus-3B with SNAC codec decoding on the Adreno 643 GPU
+(~4 tokens/second). The Pi 5 client is already wired up; TTS calls will fail
+with a connection-refused warning (not a crash) until the server is running.
+
 ---
 
 ## Configuration
 
-All tunable constants live at the top of `voice_assistant.py`.
+All tunable constants live in [config.py](config.py).
 
 | Constant | Default | Description |
 |---|---|---|
+| `RUBIKPI_HOST` | `"http://192.168.4.20"` | RUBIK Pi 3 IP |
+| `RUBIKPI_LLM_PORT` | `8080` | llama-server port (placeholder for future local LLM routing) |
+| `RUBIKPI_TTS_PORT` | `8081` | Orpheus TTS server port |
 | `WAKE_WORD_MODEL` | `"hey_jarvis"` | openwakeword model name |
 | `WAKE_WORD_THRESHOLD` | `0.6` | Detection sensitivity (0–1) |
 | `SILENCE_THRESHOLD` | `500` | RMS amplitude below which audio is silence |
 | `SILENCE_DURATION` | `1.5` | Seconds of silence before recording stops |
 | `WHISPER_MODEL` | `"base.en"` | `tiny.en` / `base.en` / `small.en` |
+| `WHISPER_DEVICE` | `"cpu"` | Inference device for faster-whisper |
+| `WHISPER_COMPUTE_TYPE` | `"int8"` | Quantisation for ARM Cortex-A76 |
 | `GEMINI_MODEL` | `"gemini-2.5-flash"` | Gemini model ID |
+| `TTS_SPEAKER` | `"tara"` | Orpheus voice |
+| `TTS_SAMPLE_RATE` | `24000` | Orpheus output sample rate (Hz) |
+| `TTS_REQUEST_TIMEOUT` | `180.0` | Per-sentence Orpheus timeout (seconds) |
 | `CAMERA_ENABLED` | `True` | Set `False` to run audio-only |
 | `CAMERA_CAPTURE_WIDTH/HEIGHT` | `2028 × 1520` | Half-sensor binned mode (fast, high quality) |
 | `CAMERA_JPEG_QUALITY` | `85` | JPEG compression (60–95) |
 | `CAMERA_WARMUP_SECONDS` | `2.0` | Seconds to wait for AE/AWB/AF to converge |
-| `ELEVENLABS_VOICE_ID` | `"NFG5qt843uXKj4pFvR7C"` | Voice ID from ElevenLabs dashboard |
+
+---
+
+## Architecture Roadmap
+
+The pipeline currently uses **Gemini for all LLM queries** because vision
+support (Picamera2 → Gemini multimodal) is the primary feature. Future work:
+
+1. **Local LLM routing** — add a routing layer that sends text-only queries to
+   Dolphin 3.0 on the RUBIK Pi 3 (port 8080) and vision queries to Gemini.
+   This reduces cloud dependency and latency for text-only turns.
+2. **TTS latency** — profile Orpheus on Adreno 643; consider batching or
+   quantising further to push below 10 s for a typical sentence.
+3. **Conversation memory** — optional ChromaDB-backed user profile / summariser.
+4. **Face recognition** — person-aware greetings using the camera.
 
 ---
 
@@ -314,6 +336,9 @@ Adjust `WAKE_WORD_THRESHOLD` (raise to reduce false positives, lower to
 increase sensitivity).
 
 **Whisper transcription is slow**  
-Switch to `WHISPER_MODEL = "tiny.en"` for the fastest option, or run
-`faster-whisper` with `compute_type="float16"` if you attach a compatible
-accelerator.
+Switch to `WHISPER_MODEL = "tiny.en"` for the fastest option.
+
+**TTS returns connection refused**  
+The Orpheus server on the RUBIK Pi 3 is not yet running. The assistant will
+log a warning and skip playback for that sentence — it will not crash.
+Start the Orpheus server on port 8081 to restore TTS.

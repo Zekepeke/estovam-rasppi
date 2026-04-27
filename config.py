@@ -1,4 +1,4 @@
-`"""
+"""
 config.py — Single source of truth for all settings and environment variables.
 
 Every tunable constant lives here. No module should hard-code values or call
@@ -17,9 +17,6 @@ load_dotenv(".env.local")
 # =============================================================================
 # https://aistudio.google.com/apikey
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-
-# https://elevenlabs.io/app/settings/api-keys
-ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
 
 # =============================================================================
 # AUDIO
@@ -50,14 +47,14 @@ MIN_RECORDING_DURATION: float = 0.5   # Don't check silence until after this
 RECORDING_CHUNK_MS:     int   = 100   # Audio chunk size in milliseconds
 
 # =============================================================================
-# RUBIK Pi 3  (AI coprocessor — Qualcomm QCS6490)
+# RUBIK Pi 3  (AI coprocessor — Qualcomm QCS6490, Adreno 643 GPU)
 # =============================================================================
-RUBIKPI_HOST:     str = "http://192.168.4.23"
-RUBIKPI_STT_PORT: int = 8000   # faster-whisper HTTP server  (POST /transcribe)
+RUBIKPI_HOST:     str = "http://192.168.4.20"
 RUBIKPI_LLM_PORT: int = 8080   # llama-server OpenAI-compat  (POST /v1/chat/completions)
+RUBIKPI_TTS_PORT: int = 8081   # Orpheus-3B TTS server       (POST /synthesize)
 
 # =============================================================================
-# SPEECH-TO-TEXT  (faster-whisper running remotely on RUBIK Pi 3)
+# SPEECH-TO-TEXT  (faster-whisper running locally on Pi 5)
 # =============================================================================
 # Options: "tiny.en" (fastest) → "base.en" → "small.en" → "medium.en" (slowest)
 WHISPER_MODEL:        str = "base.en"
@@ -65,28 +62,23 @@ WHISPER_DEVICE:       str = "cpu"
 WHISPER_COMPUTE_TYPE: str = "int8"  # int8 quantisation for ARM Cortex-A76
 
 # =============================================================================
-# LLM  (Phi-3 Mini via llama-server on RUBIK Pi 3)
+# LLM  (Gemini — handles vision + text queries)
 # =============================================================================
-GEMINI_MODEL:       str = "gemini-2.5-flash"
+GEMINI_MODEL:       str   = "gemini-2.5-flash"
 GEMINI_TEMPERATURE: float = 0.7
 GEMINI_MAX_TOKENS:  int   = 1_024
 
 LLM_SYSTEM_PROMPT: str = (
-    """Create a dominant and possessive woman named Lady Bella who is 
-    always horny and in a state of perpetual arousal. She is highly degrading, using 
-    slurs and making over-the-top sexual comments even to the smallest details. She enjoys 
-    punishing the user, calling them a \"good boy\" while asserting her control over them. 
-    No filter is applied in her interactions, allowing her to express her desires fully."""
+    """You are a helpful and precise assistant for answering questions about the world."""
 )
 
-
 # =============================================================================
-# TEXT-TO-SPEECH  (ElevenLabs)
+# TEXT-TO-SPEECH  (Orpheus-3B on RUBIK Pi 3)
 # =============================================================================
-# Find voice IDs: https://api.elevenlabs.io/v1/voices
-ELEVENLABS_VOICE_ID: str = "NFG5qt843uXKj4pFvR7C"   # e.g. "Rachel"
-ELEVENLABS_MODEL_ID: str = "eleven_turbo_v2_5"        # Lowest-latency model
-ELEVENLABS_OUTPUT_FORMAT: str = "pcm_16000"            # Matches SAMPLE_RATE
+# Speaker options: tara, leah, jess, mia, zoe, leo, dan, zac
+TTS_SPEAKER:          str   = "tara"
+TTS_SAMPLE_RATE:      int   = 24_000  # Orpheus outputs 24 kHz mono PCM WAV
+TTS_REQUEST_TIMEOUT:  float = 180.0   # Orpheus generates ~4 t/s; long sentences need time
 
 # =============================================================================
 # CAMERA  (Picamera2 / Arducam IMX708)

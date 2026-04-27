@@ -65,9 +65,6 @@ def _validate_config() -> None:
     if not config.GEMINI_API_KEY or "YOUR_" in config.GEMINI_API_KEY:
         missing.append("GEMINI_API_KEY  →  https://aistudio.google.com/apikey")
 
-    if not config.ELEVENLABS_API_KEY or "YOUR_" in config.ELEVENLABS_API_KEY:
-        missing.append("ELEVENLABS_API_KEY  →  https://elevenlabs.io/app/settings/api-keys")
-
     if missing:
         log.error("Missing API keys in .env.local:")
         for m in missing:
@@ -347,8 +344,8 @@ def main() -> None:
 ╔══════════════════════════════════════════════════════════════════╗
 ║        RASPBERRY PI 5 — MULTIMODAL VOICE ASSISTANT               ║
 ║                                                                  ║
-║  Wake Word  →  Audio + Camera (parallel)  →  Whisper STT         ║
-║             →  Gemini Vision + Text       →  ElevenLabs TTS       ║
+║  Wake Word  →  Audio + Camera (parallel)  →  Whisper STT (Pi 5)  ║
+║             →  Gemini Vision + Text       →  Orpheus TTS (RUBIK)  ║
 ║                                                                  ║
 ║  Hardware:  ReSpeaker v3.0  |  Arducam IMX708 (Camera Module 3)  ║
 ╚══════════════════════════════════════════════════════════════════╝
