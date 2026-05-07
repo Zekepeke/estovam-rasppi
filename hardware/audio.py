@@ -24,6 +24,11 @@ import config
 
 log = logging.getLogger(__name__)
 
+# ReSpeaker 4 Mic Array appears at sounddevice index 0 (hw:2,0).
+# Target it directly to avoid the ALSA-PulseAudio bridge (device='pulse') which
+# times out under PipeWire. Index 0 exposes 6 input channels; we request 1.
+_INPUT_DEVICE = 0
+
 
 # =============================================================================
 # HELPERS
@@ -146,6 +151,7 @@ class WakeWordDetector:
 
         try:
             with sd.InputStream(
+                device=_INPUT_DEVICE,
                 samplerate=config.SAMPLE_RATE,
                 channels=1,
                 dtype="int16",
@@ -162,7 +168,9 @@ class WakeWordDetector:
                     audio_flat  = audio_chunk.flatten().astype(np.int16)
                     predictions: dict[str, float] = self._model.predict(audio_flat)
 
-                    for _name, score in predictions.items():
+                    for name, score in predictions.items():
+                        if score > 0.05:  # log anything non-trivial so we can tune the threshold
+                            log.info("  wake score  %s=%.3f  (threshold=%.2f)", name, score, self.threshold)
                         if score >= self.threshold:
                             log.info(
                                 "Wake word '%s' detected  score=%.2f",
@@ -239,6 +247,7 @@ class AudioRecorder:
 
         try:
             with sd.InputStream(
+                device=_INPUT_DEVICE,
                 samplerate=self.sample_rate,
                 channels=config.CHANNELS,
                 dtype=config.DTYPE,
