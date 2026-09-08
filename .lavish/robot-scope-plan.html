@@ -1,0 +1,686 @@
+<title>Companion Robot Skeleton</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#EEF1EB; --surface:#FFFFFF; --surface-2:#E2E7DF; --surface-3:#D6DCD2;
+    --ink:#1B211D; --muted:#57614F; --muted-2:#7A8574;
+    --accent:#A85A28; --accent-ink:#FFFFFF; --accent-soft:#F0DFCB;
+    --signal:#1E7A6E; --signal-soft:#D9EEE9;
+    --line:rgba(27,33,29,0.15); --line-strong:rgba(27,33,29,0.28);
+    --danger:#A6402F; --danger-soft:#F3DDD6;
+    --warn:#96650F; --warn-soft:#F1E2C3;
+    --good:#2E7D4F; --good-soft:#DCEEE0;
+    --shadow: 0 1px 2px rgba(20,24,18,0.06), 0 8px 24px -12px rgba(20,24,18,0.18);
+    --radius: 10px;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12161A; --surface:#191F23; --surface-2:#20272B; --surface-3:#283034;
+      --ink:#E7EBE4; --muted:#A6AFA0; --muted-2:#8A9387;
+      --accent:#E08A4C; --accent-ink:#1B1204; --accent-soft:#3A2A17;
+      --signal:#4FCDBB; --signal-soft:#173330;
+      --line:rgba(231,235,228,0.14); --line-strong:rgba(231,235,228,0.26);
+      --danger:#E28575; --danger-soft:#3A211C;
+      --warn:#E0B458; --warn-soft:#362A12;
+      --good:#7FCB9B; --good-soft:#173626;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12161A; --surface:#191F23; --surface-2:#20272B; --surface-3:#283034;
+    --ink:#E7EBE4; --muted:#A6AFA0; --muted-2:#8A9387;
+    --accent:#E08A4C; --accent-ink:#1B1204; --accent-soft:#3A2A17;
+    --signal:#4FCDBB; --signal-soft:#173330;
+    --line:rgba(231,235,228,0.14); --line-strong:rgba(231,235,228,0.26);
+    --danger:#E28575; --danger-soft:#3A211C;
+    --warn:#E0B458; --warn-soft:#362A12;
+    --good:#7FCB9B; --good-soft:#173626;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.6);
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Public Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size:16px; line-height:1.6;
+  }
+  h1,h2,h3,h4{ font-family:"Archivo", ui-sans-serif, system-ui, sans-serif; text-wrap:balance; margin:0; }
+  code, .mono, .badge, .kbd, th, td{ font-family:"IBM Plex Mono", ui-monospace, monospace; }
+  p{ margin:0 0 0.9em; color:var(--ink); }
+  p:last-child{ margin-bottom:0; }
+  a{ color:var(--signal); }
+  .prose-w{ max-width:66ch; }
+  ::selection{ background:var(--accent-soft); }
+
+  img,svg,video,canvas,iframe{ max-width:100%; }
+  .grid > *, .flex > *{ min-width:0; }
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:1080px; margin:0 auto; padding:12px 28px;
+    display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+  }
+  .topbar-mark{ font-family:"Archivo"; font-weight:800; font-size:0.95rem; letter-spacing:0.02em; white-space:nowrap; }
+  .topbar-mark span{ color:var(--accent); }
+  .topnav{ display:flex; gap:4px; flex-wrap:wrap; margin-left:auto; }
+  .topnav a{
+    font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--muted); text-decoration:none; padding:6px 10px; border-radius:999px;
+  }
+  .topnav a:hover{ background:var(--surface-2); color:var(--ink); }
+
+  main{ max-width:1080px; margin:0 auto; padding:0 28px 96px; }
+
+  /* ---------- hero ---------- */
+  .hero{ padding:56px 0 40px; border-bottom:1px solid var(--line); }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:0.72rem; text-transform:uppercase; letter-spacing:0.12em;
+    color:var(--muted-2); margin-bottom:16px;
+  }
+  .eyebrow::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--signal); box-shadow:0 0 0 3px var(--signal-soft); }
+  .hero h1{ font-size:clamp(1.9rem, 3.2vw, 2.6rem); font-weight:800; letter-spacing:-0.01em; max-width:20ch; }
+  .hero .sub{ margin-top:14px; max-width:62ch; color:var(--muted); font-size:1.05rem; }
+  .hero-meta{ display:flex; gap:28px; flex-wrap:wrap; margin-top:28px; }
+  .meta-item .k{ font-size:0.68rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted-2); display:block; margin-bottom:4px; }
+  .meta-item .v{ font-size:0.92rem; font-weight:600; }
+  .meta-item .v.mono{ font-weight:500; }
+
+  section{ padding:56px 0; border-bottom:1px solid var(--line); }
+  section:last-of-type{ border-bottom:none; }
+  .section-head{ margin-bottom:28px; max-width:74ch; }
+  .section-num{ font-family:"IBM Plex Mono"; font-size:0.75rem; color:var(--accent); font-weight:600; letter-spacing:0.04em; display:block; margin-bottom:8px; }
+  .section-head h2{ font-size:1.5rem; font-weight:700; letter-spacing:-0.01em; }
+  .section-head .dek{ margin-top:8px; color:var(--muted); }
+
+  /* ---------- badges / pills ---------- */
+  .badge{
+    display:inline-flex; align-items:center; gap:6px; font-size:0.7rem; font-weight:500;
+    padding:3px 9px; border-radius:6px; border:1px solid var(--line-strong); line-height:1.4;
+    white-space:nowrap;
+  }
+  .badge.b-good{ background:var(--good-soft); color:var(--good); border-color:transparent; }
+  .badge.b-warn{ background:var(--warn-soft); color:var(--warn); border-color:transparent; }
+  .badge.b-bad{ background:var(--danger-soft); color:var(--danger); border-color:transparent; }
+  .badge.b-neutral{ background:var(--surface-2); color:var(--muted); border-color:transparent; }
+
+  /* ---------- diagram card ---------- */
+  figure{ margin:0; }
+  .diagram-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:22px 22px 16px; box-shadow:var(--shadow); overflow-x:auto;
+  }
+  figcaption{ margin-top:14px; font-size:0.88rem; color:var(--muted); max-width:70ch; }
+  .diagram-legend{ display:flex; gap:18px; flex-wrap:wrap; margin-top:14px; font-size:0.74rem; color:var(--muted-2); }
+  .diagram-legend .item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:14px; height:3px; border-radius:2px; display:inline-block; }
+
+  /* ---------- tables ---------- */
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow); }
+  table{ border-collapse:collapse; width:100%; font-size:0.86rem; }
+  thead th{
+    text-align:left; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; font-size:0.68rem;
+    color:var(--muted-2); background:var(--surface-2); padding:10px 14px; white-space:nowrap;
+    border-bottom:1px solid var(--line);
+  }
+  tbody td{ padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:top; font-family:"Public Sans"; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody td.mono{ font-family:"IBM Plex Mono"; font-size:0.82rem; }
+  tbody td .cell-note{ display:block; margin-top:3px; color:var(--muted); font-size:0.8rem; }
+
+  /* ---------- roadmap steps ---------- */
+  .roadmap{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media (max-width:820px){ .roadmap{ grid-template-columns:1fr; } }
+  .phase{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; box-shadow:var(--shadow); position:relative; display:flex; flex-direction:column; gap:10px;
+  }
+  .phase.is-deferred{ opacity:0.72; }
+  .phase .p-index{ font-family:"IBM Plex Mono"; font-size:0.72rem; color:var(--muted-2); }
+  .phase h3{ font-size:1rem; font-weight:700; }
+  .phase ul{ margin:0; padding-left:1.1em; font-size:0.86rem; color:var(--muted); display:flex; flex-direction:column; gap:6px; }
+  .phase-status{ margin-top:auto; }
+
+  /* ---------- comparison cards ---------- */
+  .decision{ border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); box-shadow:var(--shadow); margin-bottom:20px; overflow:hidden; }
+  .decision-head{ padding:16px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .decision-head h3{ font-size:1.02rem; font-weight:700; }
+  .decision-cols{ display:grid; grid-template-columns:1fr 1fr; }
+  @media (max-width:720px){ .decision-cols{ grid-template-columns:1fr; } }
+  .decision-col{ padding:18px 20px; }
+  .decision-col + .decision-col{ border-left:1px solid var(--line); }
+  @media (max-width:720px){ .decision-col + .decision-col{ border-left:none; border-top:1px solid var(--line); } }
+  .decision-col .tag{ font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted-2); margin-bottom:8px; display:block; }
+  .decision-col.is-rec{ background:var(--signal-soft); }
+  .decision-col.is-rec .tag{ color:var(--signal); }
+  .decision-col p{ font-size:0.9rem; color:var(--muted); }
+  .decision-col p strong{ color:var(--ink); }
+  .decision-rationale{ padding:14px 20px; background:var(--surface-2); font-size:0.85rem; color:var(--muted); border-top:1px solid var(--line); }
+  .decision-rationale strong{ color:var(--ink); }
+
+  /* ---------- agents.md preview ---------- */
+  .code-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .code-card .code-bar{
+    display:flex; align-items:center; justify-content:space-between; padding:9px 16px;
+    background:var(--surface-2); border-bottom:1px solid var(--line); font-size:0.76rem; color:var(--muted); font-family:"IBM Plex Mono";
+  }
+  .code-card pre{ margin:0; padding:18px 20px; overflow-x:auto; font-size:0.82rem; line-height:1.65; }
+  .code-card code{ color:var(--ink); }
+  .code-card .cm{ color:var(--muted-2); }
+  .code-card .kw{ color:var(--signal); }
+
+  /* ---------- checklist table ---------- */
+  .status-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .status-dot.open{ background:var(--danger); }
+  .status-dot.pending{ background:var(--warn); }
+  .status-dot.sent{ background:var(--signal); }
+
+  /* ---------- risks ---------- */
+  .risk-list{ display:flex; flex-direction:column; gap:14px; }
+  .risk{
+    display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:start;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .risk .r-icon{
+    width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    background:var(--warn-soft); color:var(--warn); font-family:"IBM Plex Mono"; font-weight:600; font-size:0.85rem; flex-shrink:0;
+  }
+  .risk p{ font-size:0.9rem; color:var(--muted); }
+  .risk p strong{ color:var(--ink); }
+
+  footer{ padding:40px 0 20px; color:var(--muted-2); font-size:0.8rem; }
+</style>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-mark">DESK<span>ROBOT</span> / scope plan</div>
+    <nav class="topnav">
+      <a href="#reality">Reality check</a>
+      <a href="#skeleton">Target skeleton</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#decisions">Decisions</a>
+      <a href="#agents">AGENTS.md</a>
+      <a href="#hardware">Ask Tommy</a>
+      <a href="#risks">Risks</a>
+    </nav>
+  </div>
+</div>
+
+<main>
+
+  <section class="hero" style="border-bottom:1px solid var(--line);">
+    <div class="eyebrow">Scope alignment &middot; reachy-respeaker-testing &middot; solo software lead</div>
+    <h1>Stop adding features. Finish naming the skeleton.</h1>
+    <p class="sub">You've got a working wake-word&rarr;LLM&rarr;speech loop and a camera that's warm and capturing. The gap isn't missing hardware &mdash; it's three decisions from your last planning conversation that never made it into the code: <strong>where speech-to-text runs</strong> (on the RUBIK Pi 3 over the network, or locally on the Pi 5), <strong>which text-to-speech service is actually live</strong> (ElevenLabs today vs. the Orpheus swap you discussed), and <strong>what happens to the photo the camera takes</strong> (right now: nothing &mdash; it's captured and thrown away). All three are now decided in <a href="#decisions">&sect;04</a>. This plan separates "make the existing loop match those decisions" from "build the skeleton other seams will plug into" from "wait for Tommy," so nothing blocks on hardware that isn't chosen yet.</p>
+    <div class="hero-meta">
+      <div class="meta-item"><span class="k">Repo</span><span class="v mono">reachy-respeaker-testing</span></div>
+      <div class="meta-item"><span class="k">Last commit</span><span class="v mono">b7f5f98 &middot; system prompt rename</span></div>
+      <div class="meta-item"><span class="k">Working loop</span><span class="v">wake word &rarr; STT &rarr; RUBIK LLM &rarr; TTS</span></div>
+      <div class="meta-item"><span class="k">Team today</span><span class="v">you (software) + Tommy (motor platform, not yet integrated)</span></div>
+    </div>
+  </section>
+
+  <section id="reality">
+    <div class="section-head">
+      <span class="section-num">01 &middot; Current state</span>
+      <h2>What's actually running, versus what the README and your last planning chat say</h2>
+      <p class="dek">Read against the code in <code>hardware/</code>, <code>services/</code>, <code>main.py</code>, and <code>config.py</code>. Three of your own prior decisions were never implemented &mdash; that's not a bug, it's just unfinished bookkeeping worth closing before anything new gets added.</p>
+    </div>
+
+    <figure class="diagram-card">
+      <svg viewBox="0 0 900 330" role="img" aria-label="Diagram of the current signal path: wake word and camera on the Pi 5, speech-to-text and the LLM on the RUBIK Pi 3, text-to-speech on ElevenLabs in the cloud, with the camera's JPEG frame drawn as a dead end that never reaches the LLM.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+          <marker id="arrowDead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--danger)"/>
+          </marker>
+        </defs>
+        <style>
+          text{ font-family:"IBM Plex Mono", monospace; fill:currentColor; }
+          .lbl{ font-size:11px; fill:var(--muted); }
+          .boxlbl{ font-size:12px; font-weight:600; }
+          .sub{ font-size:10px; fill:var(--muted); }
+          .col-head{ font-size:10px; letter-spacing:0.08em; fill:var(--muted-2); text-transform:uppercase; }
+          .flow{ stroke:currentColor; stroke-width:1.4; fill:none; opacity:0.55; }
+          .deadflow{ stroke:var(--danger); stroke-width:1.4; fill:none; stroke-dasharray:4 4; }
+          .box{ fill:var(--surface); stroke:var(--line-strong); stroke-width:1; rx:8; }
+          .box.active{ stroke:var(--signal); }
+        </style>
+
+        <text x="30" y="24" class="col-head">Raspberry Pi 5 &middot; orchestrator</text>
+        <text x="360" y="24" class="col-head">RUBIK Pi 3 &middot; 192.168.4.23</text>
+        <text x="700" y="24" class="col-head">Cloud</text>
+
+        <rect x="20" y="40" width="180" height="46" class="box active"/>
+        <text x="34" y="59" class="boxlbl">Wake word</text>
+        <text x="34" y="73" class="sub">openwakeword &middot; local</text>
+
+        <rect x="20" y="102" width="180" height="46" class="box active"/>
+        <text x="34" y="121" class="boxlbl">AudioRecorder</text>
+        <text x="34" y="135" class="sub">sounddevice + VAD</text>
+
+        <rect x="20" y="164" width="180" height="46" class="box active"/>
+        <text x="34" y="183" class="boxlbl">CameraCapture</text>
+        <text x="34" y="197" class="sub">Picamera2 &middot; warm, JPEG</text>
+
+        <rect x="20" y="240" width="180" height="46" class="box active"/>
+        <text x="34" y="259" class="boxlbl">TTS sentence buffer</text>
+        <text x="34" y="273" class="sub">services/tts.py</text>
+
+        <rect x="340" y="102" width="180" height="46" class="box active"/>
+        <text x="354" y="121" class="boxlbl">faster-whisper :8000</text>
+        <text x="354" y="135" class="sub">services/stt.py &middot; HTTP</text>
+
+        <rect x="340" y="164" width="180" height="46" class="box active"/>
+        <text x="354" y="183" class="boxlbl">llama-server :8080</text>
+        <text x="354" y="197" class="sub">services/llm.py &middot; text-only</text>
+
+        <rect x="680" y="240" width="180" height="46" class="box active"/>
+        <text x="694" y="259" class="boxlbl">ElevenLabs</text>
+        <text x="694" y="273" class="sub">turbo v2.5 &middot; PCM 16k</text>
+
+        <path class="flow" d="M200,125 H340" marker-end="url(#arrow)"/>
+        <text x="215" y="118" class="lbl">WAV bytes</text>
+
+        <path class="flow" d="M430,148 V164" marker-end="url(#arrow)"/>
+        <text x="440" y="160" class="lbl">transcript</text>
+
+        <path class="flow" d="M340,190 C270,220 260,255 200,263" marker-end="url(#arrow)"/>
+        <text x="222" y="232" class="lbl">SSE tokens</text>
+
+        <path class="flow" d="M200,263 H680" marker-end="url(#arrow)"/>
+        <text x="410" y="256" class="lbl">sentence text</text>
+
+        <path class="flow" d="M860,263 C880,300 60,300 20,290" marker-end="url(#arrow)"/>
+        <text x="380" y="313" class="lbl">PCM playback &rarr; ReSpeaker speaker out</text>
+
+        <path class="deadflow" d="M200,187 C260,187 280,187 340,187" marker-end="url(#arrowDead)"/>
+        <circle cx="330" cy="187" r="3" fill="var(--danger)"/>
+        <text x="207" y="216" class="lbl" fill="var(--danger)">JPEG bytes &rarr; passed to LlamaLLM.stream_response(),</text>
+        <text x="207" y="229" class="lbl" fill="var(--danger)">parameter ignored: model is text-only</text>
+      </svg>
+      <div class="diagram-legend">
+        <div class="item"><span class="swatch" style="background:var(--signal)"></span> live path in the current build</div>
+        <div class="item"><span class="swatch" style="background:var(--danger); background-image:repeating-linear-gradient(90deg,var(--danger) 0 4px,transparent 4px 8px)"></span> captured but discarded</div>
+      </div>
+      <figcaption>Camera and mic still start in parallel exactly as designed &mdash; the JPEG really is ready before the recording ends. It just has nowhere to go once it gets there: <code>services/llm.py</code> accepts an <code>image_bytes</code> argument and comments that it's "ignored &mdash; llama-server runs a text-only model." Vision hardware works; the vision feature doesn't exist yet.</figcaption>
+    </figure>
+
+    <div class="table-wrap" style="margin-top:22px;">
+      <table>
+        <thead>
+          <tr><th style="width:20%">Topic</th><th>README says</th><th>Code actually does</th><th>Your last planning chat said</th><th style="width:12%">Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Speech-to-text</strong></td>
+            <td>faster-whisper on RUBIK Pi 3, remote HTTP</td>
+            <td class="mono">services/stt.py &rarr; POST to RUBIKPI_HOST:8000/transcribe<span class="cell-note" style="font-family:'Public Sans'">Matches the README, not the chat.</span></td>
+            <td>"Moved Whisper STT from the Rubik Pi 3 to the Pi 5 (in-process, skipping the HTTP round-trip)"</td>
+            <td><span class="badge b-warn">decided, not built</span></td>
+          </tr>
+          <tr>
+            <td><strong>Text-to-speech</strong></td>
+            <td>ElevenLabs, streaming PCM</td>
+            <td class="mono">services/tts.py &rarr; ElevenLabs turbo_v2_5, live and working</td>
+            <td>"Decided to drop ElevenLabs entirely and replace with Orpheus TTS on the Rubik Pi 3" (still <span class="mono">&#128309; Planned</span> per your own status)</td>
+            <td><span class="badge b-good">code matches README</span></td>
+          </tr>
+          <tr>
+            <td><strong>Vision &rarr; LLM</strong></td>
+            <td>"speaks, listens, and <strong>sees</strong>" via Gemini vision + inline JPEG</td>
+            <td class="mono">Camera captures JPEG &rarr; passed to LlamaLLM &rarr; parameter ignored (text-only model)</td>
+            <td>Not discussed &mdash; the fallback ladder (GPU &rarr; Gemini &rarr; RUBIK &rarr; Pi5) was designed for LLM failover, not explicitly for vision.</td>
+            <td><span class="badge b-bad">stale claim, dead code path</span><span class="cell-note">Resolved in &sect;04 &mdash; Gemini becomes the real vision path.</span></td>
+          </tr>
+          <tr>
+            <td><strong>LLM</strong></td>
+            <td>Phi-3 Mini via llama-server</td>
+            <td class="mono">config.LLM_SYSTEM_PROMPT rewritten to "Ben" persona, GeminiLLM aliased to LlamaLLM</td>
+            <td>Dolphin 3.0 Llama 3.2 3B Q4_K_M, confirmed 33/33 GPU layers on RUBIK</td>
+            <td><span class="badge b-good">code and chat agree; README is the stale one</span></td>
+          </tr>
+          <tr>
+            <td><strong>RUBIK Pi 3 address</strong></td>
+            <td class="mono">192.168.4.28</td>
+            <td class="mono">config.py &rarr; 192.168.4.23</td>
+            <td class="mono">192.168.4.20</td>
+            <td><span class="badge b-warn">three stale LAN IPs</span><span class="cell-note">You've since set up Tailscale for exactly this reason &mdash; none of these three should be the answer going forward.</span></td>
+          </tr>
+          <tr>
+            <td><strong>voice_assistant.py</strong></td>
+            <td>Setup instructions still say <code class="mono">python voice_assistant.py</code></td>
+            <td>Not imported anywhere; superseded by <code class="mono">main.py</code> + <code class="mono">hardware/</code> + <code class="mono">services/</code>. Still uses Gemini + ElevenLabs + a Jarvis persona.</td>
+            <td>Not mentioned.</td>
+            <td><span class="badge b-bad">dead file, confusing entry point</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="skeleton">
+    <div class="section-head">
+      <span class="section-num">02 &middot; Target skeleton</span>
+      <h2>The seams you outlined are still the right ones &mdash; build the spine, mock what Tommy hasn't shipped</h2>
+      <p class="dek">Nothing here requires new hardware. <code>EventBus</code> and <code>MotionInterface</code> are pure Python. The point of building them now &mdash; before any STM32 exists &mdash; is that Tommy gets a contract to implement against the moment his platform is ready, instead of a conversation about your code.</p>
+    </div>
+
+    <figure class="diagram-card">
+      <svg viewBox="0 0 900 400" role="img" aria-label="Diagram of the target skeleton: an EventBus spine down the middle with four seams attached — AudioSink and CameraInterface active today, AIEngine with a RUBIK primary tier and a new Gemini vision/fallback tier, and MotionInterface backed by MockMotion now with the real SerialMotion and STM32 board greyed out as deferred until Tommy's specs land.">
+        <style>
+          text{ font-family:"IBM Plex Mono", monospace; fill:currentColor; }
+          .boxlbl{ font-size:12px; font-weight:600; }
+          .sub2{ font-size:10px; fill:var(--muted); }
+          .tag{ font-size:9px; letter-spacing:0.06em; }
+          .spine{ stroke:var(--signal); stroke-width:2; fill:none; }
+          .conn{ stroke:currentColor; stroke-width:1.3; fill:none; opacity:0.5; }
+          .connDef{ stroke:var(--muted-2); stroke-width:1.3; fill:none; stroke-dasharray:3 4; opacity:0.7; }
+          .boxNow{ fill:var(--surface); stroke:var(--signal); stroke-width:1.2; rx:8; }
+          .boxLater{ fill:var(--surface); stroke:var(--line-strong); stroke-width:1; stroke-dasharray:3 3; rx:8; opacity:0.75; }
+          .spineNode{ fill:var(--signal); }
+        </style>
+
+        <rect x="60" y="150" width="230" height="52" class="boxNow"/>
+        <text x="76" y="171" class="boxlbl">CameraInterface</text>
+        <text x="76" y="186" class="sub2">Picamera2 &middot; already warm</text>
+
+        <rect x="60" y="230" width="230" height="52" class="boxNow"/>
+        <text x="76" y="251" class="boxlbl">AudioSink (TTS)</text>
+        <text x="76" y="266" class="sub2">ElevenLabs &middot; keep as-is</text>
+
+        <rect x="610" y="60" width="230" height="72" class="boxNow"/>
+        <text x="626" y="80" class="boxlbl">AIEngine</text>
+        <text x="626" y="95" class="sub2">primary: RUBIK llama-server (text)</text>
+        <text x="626" y="109" class="sub2" fill="var(--signal)">+ new tier: Gemini (vision + fallback)</text>
+
+        <rect x="610" y="150" width="230" height="52" class="boxNow"/>
+        <text x="626" y="171" class="boxlbl">MotionInterface</text>
+        <text x="626" y="186" class="sub2">backed by MockMotion &mdash; prints intent</text>
+
+        <rect x="610" y="222" width="230" height="60" class="boxLater"/>
+        <text x="626" y="242" class="boxlbl" fill="var(--muted)">SerialMotion</text>
+        <text x="626" y="256" class="sub2">STM32 Blackpill &middot; UART 115200</text>
+        <text x="626" y="270" class="sub2">deferred &mdash; waiting on Tommy's specs</text>
+
+        <line x1="450" y1="40" x2="450" y2="360" class="spine"/>
+        <circle cx="450" cy="80" r="4" class="spineNode"/>
+        <circle cx="450" cy="176" r="4" class="spineNode"/>
+        <circle cx="450" cy="256" r="4" class="spineNode"/>
+        <circle cx="450" cy="320" r="4" class="spineNode"/>
+        <text x="462" y="36" class="tag" fill="var(--signal)">EVENTBUS &mdash; IDLE &rarr; LISTENING &rarr; THINKING &rarr; SPEAKING</text>
+
+        <path class="conn" d="M290,176 H450" />
+        <path class="conn" d="M290,256 H450" />
+        <path class="conn" d="M610,96 C520,96 470,90 450,80" />
+        <path class="connDef" d="M610,252 C520,252 470,262 450,256" />
+
+        <rect x="60" y="320" width="230" height="52" class="boxLater"/>
+        <text x="76" y="341" class="boxlbl" fill="var(--muted)">Battery / tier telemetry</text>
+        <text x="76" y="356" class="sub2">deferred &mdash; needs real sensor data</text>
+        <path class="connDef" d="M290,346 H450" />
+        <circle cx="450" cy="346" r="4" fill="var(--muted-2)"/>
+
+        <text x="30" y="30" class="tag" fill="var(--muted-2)">SEAMS, LEFT TO RIGHT: WHERE HARDWARE PLUGS IN</text>
+      </svg>
+      <div class="diagram-legend">
+        <div class="item"><span class="swatch" style="background:var(--signal)"></span> build now (software only)</div>
+        <div class="item"><span class="swatch" style="background:var(--muted-2); background-image:repeating-linear-gradient(90deg,var(--muted-2) 0 3px,transparent 3px 6px)"></span> deferred &mdash; blocked on hardware decisions</div>
+      </div>
+      <figcaption>The four seams you already named &mdash; AIEngine, CameraInterface, AudioSink, MotionInterface &mdash; stay. What changes is scope: AIEngine grows a second tier so the camera work you've done finally reaches a model that can see, and MotionInterface ships with MockMotion so the event bus has somewhere to publish to before a single wire exists. One nuance worth naming: today <code>hardware/camera.py</code> and <code>services/tts.py</code> are concrete classes, not implementations of a declared <code>CameraInterface</code> / <code>AudioSink</code> protocol &mdash; there's no abstract seam to check the check against yet. Phase 2 is where all four seams become real interfaces (a small <code>Protocol</code> or ABC each), not just modules that happen to do the job.</figcaption>
+    </figure>
+  </section>
+
+  <section id="roadmap">
+    <div class="section-head">
+      <span class="section-num">03 &middot; Roadmap</span>
+      <h2>Four phases, in dependency order</h2>
+      <p class="dek">Phase 1 and 2 need nothing from Tommy. Phase 3 needs nothing from you until his answers land in <a href="#hardware">the outreach list</a> below.</p>
+    </div>
+    <div class="roadmap">
+      <div class="phase">
+        <span class="p-index">Phase 0</span>
+        <h3>What's already real</h3>
+        <ul>
+          <li>Wake word &rarr; VAD record &rarr; STT &rarr; LLM &rarr; TTS loop runs end to end</li>
+          <li>Camera captures a warm, focused JPEG in parallel with audio</li>
+          <li>RUBIK Pi 3 running Dolphin 3B at ~3.4 tok/s, full GPU offload</li>
+        </ul>
+        <div class="phase-status"><span class="badge b-good">done</span></div>
+      </div>
+      <div class="phase">
+        <span class="p-index">Phase 1 &middot; now</span>
+        <h3>Make the loop honest</h3>
+        <ul>
+          <li>Carry out the three decisions in <a href="#decisions">section 04</a> (STT &rarr; Pi 5, TTS stays ElevenLabs, vision &rarr; Gemini tier)</li>
+          <li>Point <code>RUBIKPI_HOST</code> at the Tailscale address instead of a LAN IP &mdash; one value in config.py, no more drift across README/.env/config</li>
+          <li>Move <code>voice_assistant.py</code>, <code>parrot.py</code>, <code>test_wakeword.py</code> into <code>scripts/experiments/</code> as their own commit (not deleted, not a new repo &mdash; keeps history, gets them out of the import path)</li>
+          <li>requirements.txt lists everything main.py's tree actually imports (picamera2, google-genai if vision ships)</li>
+        </ul>
+        <div class="phase-status"><span class="badge b-warn">no new features</span></div>
+      </div>
+      <div class="phase">
+        <span class="p-index">Phase 2 &middot; next</span>
+        <h3>Build the spine</h3>
+        <ul>
+          <li><code>EventBus</code> + <code>State</code> enum (IDLE/LISTENING/THINKING/SPEAKING)</li>
+          <li><code>MotionInterface</code> + <code>MockMotion</code> that logs intended poses</li>
+          <li>Wrap STT/LLM/TTS calls so main.py only ever talks to the bus, never to a service directly</li>
+          <li>Latency timestamps at each stage boundary (you already decided this in the chat &mdash; still nothing in code)</li>
+        </ul>
+        <div class="phase-status"><span class="badge b-neutral">software only</span></div>
+      </div>
+      <div class="phase is-deferred">
+        <span class="p-index">Phase 3 &middot; blocked on Tommy</span>
+        <h3>Real motion + fallback ladder</h3>
+        <ul>
+          <li><code>SerialMotion</code> against the real STM32 line protocol</li>
+          <li>Emotion-tag parser &rarr; <code>EXPRESS()</code> events (pointless without a motion consumer)</li>
+          <li>Full AIEngine fallback ladder (home GPU &rarr; Gemini &rarr; RUBIK &rarr; Pi5 local) with battery-based tier demotion</li>
+        </ul>
+        <div class="phase-status"><span class="badge b-bad">needs hardware answers</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="decisions">
+    <div class="section-head">
+      <span class="section-num">04 &middot; Decisions needed now</span>
+      <h2>Three small calls, each cheap to make, each blocking Phase 1</h2>
+      <p class="dek">None of these need Tommy. They need you to pick, once, and let the code catch up to the choice.</p>
+    </div>
+
+    <div class="decision">
+      <div class="decision-head">
+        <h3>Where does STT run?</h3>
+        <span class="badge b-good">&#10003; decided &middot; move to Pi 5, in-process</span>
+      </div>
+      <div class="decision-cols">
+        <div class="decision-col">
+          <span class="tag">Not chosen &middot; stay on RUBIK</span>
+          <p>faster-whisper stays remote over HTTP on <code>:8000</code>. Zero code change, but costs a network hop and spends RUBIK compute that the LLM could use instead.</p>
+        </div>
+        <div class="decision-col is-rec">
+          <span class="tag">&#10003; Decided &middot; Pi 5, in-process</span>
+          <p>Removes a server you have to keep alive on RUBIK and frees its NPU/GPU budget entirely for the LLM &mdash; the bigger latency win. Start with <code>tiny.en</code>; step up to <code>base.en</code> only if accuracy needs it.</p>
+        </div>
+      </div>
+      <div class="decision-rationale"><strong>Benchmark before you swap <code>services/stt.py</code>:</strong> write a small standalone script that runs the existing wake-word loop and a local <code>faster-whisper</code> instance in the same process, side by side &mdash; don't touch <code>main.py</code> yet. Say the wake word 10&ndash;15 times while it's transcribing a held buffer in the background, watching two things: the "Audio buffer overflow" warning already logged in <code>hardware/audio.py</code>, and whether any wake-word trigger gets missed or delayed. Clean run &rarr; swap <code>services/stt.py</code>'s HTTP call for the local <code>WhisperModel</code> behind the same function signature, so <code>main.py</code> doesn't change. Contention &rarr; keep STT remote and revisit once Phase 2's latency instrumentation can show you where the time actually goes.</div>
+    </div>
+
+    <div class="decision">
+      <div class="decision-head">
+        <h3>Which TTS provider?</h3>
+        <span class="badge b-good">&#10003; decided &middot; keep ElevenLabs</span>
+      </div>
+      <div class="decision-cols">
+        <div class="decision-col is-rec">
+          <span class="tag">&#10003; Decided &middot; ElevenLabs</span>
+          <p>It works today, ~75ms first-audio with Flash/Turbo, and per-request <code>voice_settings</code> already gives you the emotion hook the chat designed for later. Zero engineering cost &mdash; no code change needed here.</p>
+        </div>
+        <div class="decision-col">
+          <span class="tag">Not now &middot; Orpheus on RUBIK</span>
+          <p>Removes the cloud dependency and per-call cost, but RUBIK is already carrying the LLM, and it's still unbenchmarked ("&#128309; Planned" in your own status notes). Revisit after the event bus exists, so a TTS swap doesn't land at the same time as an architecture change.</p>
+        </div>
+      </div>
+      <div class="decision-rationale"><strong>Confirmed:</strong> swapping TTS providers is exactly the kind of feature-shaped work you're deferring right now. ElevenLabs isn't a compromise &mdash; it's the right call while the priority is a working skeleton over a fully self-hosted stack.</div>
+    </div>
+
+    <div class="decision">
+      <div class="decision-head">
+        <h3>What happens to the camera's JPEG?</h3>
+        <span class="badge b-good">&#10003; decided &middot; route through Gemini</span>
+      </div>
+      <div class="decision-cols">
+        <div class="decision-col">
+          <span class="tag">Not chosen &middot; turn the camera off</span>
+          <p>Set <code>CAMERA_ENABLED = False</code>. Honest, but costs you the "sees" feature you explicitly want working, so this isn't the direction.</p>
+        </div>
+        <div class="decision-col is-rec">
+          <span class="tag">&#10003; Decided &middot; Gemini as the AIEngine's second tier</span>
+          <p>Confirmed: no local vision model on RUBIK for now. <code>services/llm.py</code> today has no Gemini import at all &mdash; <code>GEMINI_API_KEY</code> and <code>GEMINI_MODEL</code> are leftover config constants nothing calls. The rule to add: if the turn includes an image, call Gemini multimodal (image + prompt in one request) instead of RUBIK's text-only <code>llama-server</code>. RUBIK stays the default for audio-only turns.</p>
+        </div>
+      </div>
+      <div class="decision-rationale">
+        <p style="margin-bottom:10px"><strong>Cleanup that comes with this:</strong> <code>LlamaLLM.stream_response()</code> currently accepts an <code>image_bytes</code> argument it silently ignores. Once Gemini owns every turn that has an image, that parameter has no reason to exist on the RUBIK client &mdash; the branch belongs one level up, in whatever function decides which backend to call. Drop it from <code>LlamaLLM</code> rather than leaving a second dead parameter next to the one you just found.</p>
+        <p><strong>On local vision (YOLO or similar) &mdash; not worth it right now:</strong> RUBIK is already carrying the LLM's RAM and GPU budget; a second model competes with it for the same resources. Gemini's multimodal API already answers "what am I looking at" for free-tier volumes, which is the feature you're after. Local detection earns its cost only for a <em>different</em> problem &mdash; continuous, low-latency tracking (say, keeping a face centered for head motion) rather than a per-query description &mdash; and that's a Phase 3+ conversation once there's a motor to point at what it finds.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="agents">
+    <div class="section-head">
+      <span class="section-num">05 &middot; Repo conventions</span>
+      <h2>Yes, add an AGENTS.md &mdash; even solo</h2>
+      <p class="dek">Two reasons it earns its cost now rather than later: your own "locked" decisions from the planning chat (no hardcoded hosts, orchestrator never collapses onto a coprocessor, streamed poses are fire-and-forget) exist only in that conversation today &mdash; nothing in the repo states them. And you said you may bring on other engineers; an <code>AGENTS.md</code> is what a coding agent (or a new teammate) reads before touching the seams, so those rules don't get re-litigated or quietly violated.</p>
+    </div>
+    <div class="code-card">
+      <div class="code-bar"><span>AGENTS.md</span><span>proposed &middot; repo root</span></div>
+      <pre><code><span class="cm"># Desk Robot &mdash; agent conventions</span>
+
+<span class="kw">## Architecture rules (locked)</span>
+- Pi 5 is the orchestrator. It speaks protocols to coprocessors
+  (HTTP to RUBIK, serial to the motion board) &mdash; it never becomes one.
+- Four seams only: AIEngine, CameraInterface, AudioSink, MotionInterface.
+  New hardware gets a new implementation of an existing seam, not a new seam.
+- Motion is event-driven. main.py emits state on EventBus; nothing
+  downstream is ever imported by the core loop directly.
+- No hardcoded hosts, ports, or model names outside config.py.
+
+<span class="kw">## Current topology (decided <span class="cm">2026-09-08</span> &mdash; update this block, not just config.py, when it changes)</span>
+- RUBIK Pi 3 is reached via its Tailscale address, set once in config.py.
+  Never hardcode a LAN IP in README, .env.example, or code.
+- STT runs locally on the Pi 5 (faster-whisper, in-process). RUBIK is
+  reserved for the LLM.
+- TTS is ElevenLabs. Not revisited until after the event bus ships.
+- Vision: turns with an image go to Gemini multimodal (AIEngine's second
+  tier); RUBIK's llama-server stays text-only and does not take images.
+
+<span class="kw">## Deferred until Tommy's motion platform lands</span>
+- SerialMotion, real pose ranges, baud/axis conventions.
+- Emotion-tag parsing &mdash; there is no motion consumer for it yet.
+Do not scaffold these speculatively; MockMotion is the seam contract.
+
+<span class="kw">## Running it</span>
+- `python main.py` is the only entry point. Files at repo root
+  (parrot.py, test_wakeword.py) are throwaway hardware probes, not
+  part of the app &mdash; do not import from them.</code></pre>
+    </div>
+  </section>
+
+  <section id="hardware">
+    <div class="section-head">
+      <span class="section-num">06 &middot; Outreach to Tommy</span>
+      <h2>What blocks Phase 3, phrased as questions you can send as-is</h2>
+      <p class="dek">Every row here was already flagged as an open item in your planning chat, and none of it has a code-side answer. <span class="badge b-neutral" style="margin-left:6px">sent to Tommy &middot; 2026-09-08</span></p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:18%">Item</th><th>Question for Tommy</th><th>Why it blocks software</th><th style="width:12%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Baud rate</td>
+            <td>Confirm 115200 on the STM32 UART, or state the actual figure.</td>
+            <td><code class="mono">SerialMotion</code> can't open a port without it.</td>
+            <td><span class="status-dot sent"></span>sent &middot; awaiting reply</td>
+          </tr>
+          <tr>
+            <td>Axis / zero convention</td>
+            <td>Which axis is "home," and which direction is positive, on the Stewart platform?</td>
+            <td>Determines the sign convention every pose command from the Pi 5 must use.</td>
+            <td><span class="status-dot sent"></span>sent &middot; awaiting reply</td>
+          </tr>
+          <tr>
+            <td>Pose ranges</td>
+            <td>Min/max per axis the servos can safely reach.</td>
+            <td>MotionInterface needs real clamp values, not placeholders, before SerialMotion is trustworthy.</td>
+            <td><span class="status-dot sent"></span>sent &middot; awaiting reply</td>
+          </tr>
+          <tr>
+            <td>LOOK&rarr;pose mapping owner</td>
+            <td>Software has the camera's field of view; propose software computes the target pose and motion just executes it &mdash; confirm Tommy agrees.</td>
+            <td>Decides which side of the seam owns a coordinate transform.</td>
+            <td><span class="status-dot sent"></span>sent &middot; needs his sign-off</td>
+          </tr>
+          <tr>
+            <td>Power budget</td>
+            <td>Confirm the 12V/3A USB-C PD draw for RUBIK doesn't starve the motion board on shared battery under load.</td>
+            <td>A brownout under load looks like a software bug if this isn't ruled out first.</td>
+            <td><span class="status-dot sent"></span>sent &middot; awaiting reply</td>
+          </tr>
+          <tr>
+            <td>Sensors for FAULT</td>
+            <td>Are temp/current sensors phase-2 hardware, or already on the board?</td>
+            <td>The typed reply channel (<code class="mono">TEL</code> / <code class="mono">FAULT</code>) is designed for this &mdash; timing only matters for when to wire the parser.</td>
+            <td><span class="status-dot pending"></span>informational</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="risks">
+    <div class="section-head">
+      <span class="section-num">07 &middot; Risks and open questions</span>
+      <h2>What could make this plan wrong</h2>
+    </div>
+    <div class="risk-list">
+      <div class="risk">
+        <div class="r-icon">CPU</div>
+        <p><strong>Moving STT to Pi 5 could contend with wake-word polling.</strong> Both need the mic stream; local Whisper inference on a Cortex-A76 while openwakeword is also listening hasn't been measured on this board. See the benchmark steps in <a href="#decisions">&sect;04</a> &mdash; run them before touching <code>services/stt.py</code>, not after.</p>
+      </div>
+      <div class="risk">
+        <div class="r-icon">OK</div>
+        <p><strong>Accepted for MVP:</strong> Gemini as a vision tier reintroduces a cloud dependency the RUBIK path was partly meant to avoid. You've weighed that against getting a working MVP sooner and chosen speed &mdash; the only follow-up is to keep the tier switch clearly logged, so "why did this call leave the LAN" stays answerable later without having to reason about it now.</p>
+      </div>
+      <div class="risk">
+        <div class="r-icon">RM</div>
+        <p><strong>Decided:</strong> move <code>voice_assistant.py</code>, <code>parrot.py</code>, and <code>test_wakeword.py</code> into <code>scripts/experiments/</code> rather than deleting them or starting a new repo &mdash; keeps git history, avoids a destructive action, and gets them out of the import path. Do it as its own commit, not bundled into an unrelated change.</p>
+      </div>
+      <div class="risk">
+        <div class="r-icon">?</div>
+        <p><strong>Open:</strong> does Tommy want MotionInterface's Python type to already assume a Stewart-platform pose (6-DOF) or a simpler pan/tilt shape for a first pass? Affects the MockMotion interface you'd write in Phase 2.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Scope plan for reachy-respeaker-testing &middot; generated from a read of README.md, config.py, main.py, hardware/, services/, and the RUBIK Pi 3 planning conversation. Verified against the code at commit b7f5f98.
+  </footer>
+
+</main>
