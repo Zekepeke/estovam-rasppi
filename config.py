@@ -17,6 +17,8 @@ load_dotenv(".env.local")
 # =============================================================================
 # https://aistudio.google.com/apikey
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+# https://elevenlabs.io/app/settings/api-keys
+ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
 
 # =============================================================================
 # AUDIO
@@ -51,7 +53,6 @@ RECORDING_CHUNK_MS:     int   = 100   # Audio chunk size in milliseconds
 # =============================================================================
 RUBIKPI_HOST:     str = "http://100.116.151.71"
 RUBIKPI_LLM_PORT: int = 8080  # llama-server OpenAI-compat  (POST /v1/chat/completions)
-RUBIKPI_TTS_PORT: int = 8081   # Orpheus-3B TTS server       (POST /synthesize)
 
 # =============================================================================
 # SPEECH-TO-TEXT  (faster-whisper running locally on Pi 5)
@@ -62,11 +63,28 @@ WHISPER_DEVICE:       str = "cpu"
 WHISPER_COMPUTE_TYPE: str = "int8"  # int8 quantisation for ARM Cortex-A76
 
 # =============================================================================
-# LLM  (Gemini — handles vision + text queries)
+# LLM  (Dolphin on RUBIK Pi for conversation, Gemini for vision only)
 # =============================================================================
 GEMINI_MODEL:       str   = "gemini-2.5-flash"
 GEMINI_TEMPERATURE: float = 0.7
 GEMINI_MAX_TOKENS:  int   = 1_024
+
+# Dolphin3.0-Llama3.2-3B via llama-server (n_ctx 8192)
+DOLPHIN_URL:          str   = f"{RUBIKPI_HOST}:{RUBIKPI_LLM_PORT}/v1/chat/completions"
+DOLPHIN_TEMPERATURE:  float = 0.7
+DOLPHIN_MAX_TOKENS:   int   = 512
+DOLPHIN_HISTORY_TURNS: int  = 10      # user+assistant pairs kept; context is only 8k
+DOLPHIN_TIMEOUT:      float = 60.0    # seconds to wait for connect / first token
+
+# The camera only fires when the transcript contains one of these (lowercase
+# substring match). Those turns go to Gemini; everything else goes to Dolphin.
+VISION_TRIGGER_PHRASES: tuple[str, ...] = (
+    "what do you see", "what can you see", "what are you seeing",
+    "look at", "take a look", "have a look", "can you see",
+    "do you see", "what is this", "what's this", "what am i holding",
+    "describe what", "in front of you",
+    "how do i look", "what am i wearing", "read this", "use your camera",
+)
 
 LLM_SYSTEM_PROMPT: str = (
     """Create a dominant and possessive woman named Lady Bella who is 
@@ -77,12 +95,13 @@ LLM_SYSTEM_PROMPT: str = (
 )
 
 # =============================================================================
-# TEXT-TO-SPEECH  (Orpheus-3B on RUBIK Pi 3)
+# TEXT-TO-SPEECH  (ElevenLabs)
 # =============================================================================
-# Speaker options: tara, leah, jess, mia, zoe, leo, dan, zac
-TTS_SPEAKER:          str   = "tara"
-TTS_SAMPLE_RATE:      int   = 24_000  # Orpheus outputs 24 kHz mono PCM WAV
-TTS_REQUEST_TIMEOUT:  float = 180.0   # Orpheus generates ~4 t/s; long sentences need time
+# Find voice IDs: https://api.elevenlabs.io/v1/voices
+# Free plans can only use premade voices via the API (library voices → 402).
+ELEVENLABS_VOICE_ID:      str = "EXAVITQu4vr4xnSDxMaL"  # "Sarah" (premade)
+ELEVENLABS_MODEL_ID:      str = "eleven_turbo_v2_5"   # Lowest-latency model
+ELEVENLABS_OUTPUT_FORMAT: str = "pcm_16000"           # Matches SAMPLE_RATE
 
 # =============================================================================
 # CAMERA  (Picamera2 / Arducam IMX708)

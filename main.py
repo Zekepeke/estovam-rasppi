@@ -20,13 +20,11 @@ import threading
 import time
 from typing import Optional
 
-import numpy as np
-
 import config
 from hardware.audio  import WakeWordDetector, AudioRecorder, list_audio_devices
 from hardware.camera import CameraCapture
 from services.stt    import SpeechToText
-from services.llm    import GeminiLLM
+from services.llm    import LLMRouter
 from services.tts    import TextToSpeech
 
 
@@ -65,6 +63,9 @@ def _validate_config() -> None:
     if not config.GEMINI_API_KEY or "YOUR_" in config.GEMINI_API_KEY:
         missing.append("GEMINI_API_KEY  →  https://aistudio.google.com/apikey")
 
+    if not config.ELEVENLABS_API_KEY or "YOUR_" in config.ELEVENLABS_API_KEY:
+        missing.append("ELEVENLABS_API_KEY  →  https://elevenlabs.io/app/settings/api-keys")
+
     if missing:
         log.error("Missing API keys in .env.local:")
         for m in missing:
@@ -84,21 +85,19 @@ class VoiceAssistant:
     Interaction flow per wake word event
     ──────────────────────────────────────
     1. Wake word detected by WakeWordDetector
-    2. AudioRecorder + CameraCapture run IN PARALLEL (two threads)
-       • AudioRecorder opens the mic and sets a threading.Event the instant
-         the InputStream is live. CameraCapture waits on that event before
-         firing — guaranteeing audio is already capturing before the shutter
-         trips.
+    2. AudioRecorder records until VAD silence
     3. SpeechToText transcribes the recorded audio
-    4. GeminiLLM sends transcript + JPEG to Gemini and streams tokens back
-    5. TextToSpeech plays the response sentence-by-sentence as it arrives
+    4. If the transcript asks about the scene (config.VISION_TRIGGER_PHRASES),
+       CameraCapture grabs a frame and LLMRouter sends it to Gemini;
+       otherwise the turn goes to Dolphin on the RUBIK Pi, text-only
+    5. TextToSpeech (ElevenLabs) plays the response sentence-by-sentence
     """
 
     def __init__(self) -> None:
         self.wake_detector = WakeWordDetector()
         self.recorder      = AudioRecorder()
         self.stt           = SpeechToText()
-        self.llm           = GeminiLLM()
+        self.llm           = LLMRouter()
         self.tts           = TextToSpeech()
         self.camera        = CameraCapture() if config.CAMERA_ENABLED else None
 
@@ -130,7 +129,7 @@ class VoiceAssistant:
         for component, name in [
             (self.wake_detector, "WakeWordDetector"),
             (self.stt,           "SpeechToText"),
-            (self.llm,           "GeminiLLM"),
+            (self.llm,           "LLMRouter"),
             (self.tts,           "TextToSpeech"),
         ]:
             if not component.initialize():
@@ -166,77 +165,34 @@ class VoiceAssistant:
         log.info("Shutdown complete. Goodbye.")
 
     # ------------------------------------------------------------------
-    # Parallel capture (the latency-critical section)
+    # Vision routing
     # ------------------------------------------------------------------
 
-    def _capture_parallel(
-        self,
-    ) -> tuple[Optional[np.ndarray], Optional[bytes]]:
+    @staticmethod
+    def _wants_vision(text: str) -> bool:
+        """True if the transcript asks about what the camera can see."""
+        lowered = text.lower()
+        return any(phrase in lowered for phrase in config.VISION_TRIGGER_PHRASES)
+
+    def _capture_if_needed(self, text: str) -> Optional[bytes]:
         """
-        Launch audio recording and camera capture simultaneously.
+        Grab a frame only for vision questions.
 
-        Race-condition fix (vs. the original monolith)
-        ───────────────────────────────────────────────
-        The original code started both threads back-to-back and relied on
-        the OS scheduler to run the audio thread first. This is UNSAFE:
-        there is no guarantee which thread gets CPU time first, and if the
-        camera thread runs before the audio InputStream is open, the user's
-        first syllable can be lost.
-
-        The fix uses a threading.Event (mic_ready):
-
-            Audio thread:  opens sd.InputStream()  →  mic_ready.set()
-            Camera thread: mic_ready.wait()         →  camera.capture_to_memory()
-
-        This makes the ordering explicit: the camera NEVER fires before the
-        mic is confirmed open, regardless of scheduler behaviour.
-
-        Timeline (typical):
-            t=0.000  audio_thread starts, opens InputStream
-            t=0.005  mic_ready.set() — InputStream confirmed open
-            t=0.005  camera_thread wakes, grabs JPEG (~0.1 s)
-            t=0.100  camera_thread done, JPEG in memory
-            t=1.8    audio_thread stops (VAD silence), returns int16 array
-            t=1.800  both threads joined, continue to transcription
-
-        The camera result is ready long before the user stops talking.
-
-        Returns:
-            (audio_array, jpeg_bytes) — either may be None on failure.
+        The camera runs continuously (warm, continuous AF), so capturing
+        after transcription costs ~0.1 s — far cheaper than sending a JPEG
+        with every turn. Returning None routes the turn to Dolphin.
         """
-        audio_result: list[Optional[np.ndarray]] = [None]
-        image_result: list[Optional[bytes]]       = [None]
+        if not self._wants_vision(text):
+            log.info("No vision request — Dolphin, text-only")
+            return None
+        if self.camera is None:
+            log.warning("Vision requested but camera unavailable — Dolphin, text-only")
+            return None
 
-        # The Event that synchronises the two threads
-        mic_ready = threading.Event()
-
-        def _record() -> None:
-            # Passes mic_ready to the recorder; recorder sets it the instant
-            # the sounddevice InputStream context manager is entered.
-            audio_result[0] = self.recorder.record(mic_ready=mic_ready)
-
-        def _capture() -> None:
-            if self.camera is None:
-                return
-            # Block until the mic is confirmed open — then fire the shutter.
-            acquired = mic_ready.wait(timeout=5.0)
-            if not acquired:
-                log.warning(
-                    "mic_ready event timed out — capturing image anyway"
-                )
-            image_result[0] = self.camera.capture_to_memory()
-
-        audio_thread  = threading.Thread(target=_record,  daemon=True, name="audio-capture")
-        camera_thread = threading.Thread(target=_capture, daemon=True, name="camera-capture")
-
-        # Audio starts first; it will signal mic_ready, then camera fires.
-        audio_thread.start()
-        camera_thread.start()
-
-        audio_thread.join()
-        camera_thread.join()
-
-        return audio_result[0], image_result[0]
+        image_bytes = self.camera.capture_to_memory()
+        if image_bytes:
+            log.info("Vision request — Gemini with image (%.0f KB)", len(image_bytes) / 1_024)
+        return image_bytes
 
     # ------------------------------------------------------------------
     # Main loop
@@ -262,21 +218,13 @@ class VoiceAssistant:
                     time.sleep(1)
                     continue
 
-                # ── 2. Parallel audio + camera capture ────────────────────
-                log.info("Capturing audio and image in parallel ...")
-                audio, image_bytes = self._capture_parallel()
+                # ── 2. Record ─────────────────────────────────────────────
+                log.info("Recording ...")
+                audio = self.recorder.record()
 
                 if audio is None or len(audio) < config.SAMPLE_RATE * 0.5:
                     log.warning("Recording too short or failed — ready again")
                     continue
-
-                if image_bytes:
-                    log.info(
-                        "Image ready (%.0f KB) — multimodal request",
-                        len(image_bytes) / 1_024,
-                    )
-                else:
-                    log.info("No image — text-only request")
 
                 # ── 3. Transcribe ─────────────────────────────────────────
                 text = self.stt.transcribe(audio)
@@ -287,10 +235,12 @@ class VoiceAssistant:
                     )
                     continue
 
-                # ── 4 + 5. Multimodal LLM → streaming TTS ─────────────────
+                image_bytes = self._capture_if_needed(text)
+
+                # ── 4 + 5. LLM (Dolphin or Gemini) → streaming TTS ────────
                 # llm.stream_response() is a generator. tts.speak_streaming()
                 # consumes it sentence-by-sentence, playing audio as each
-                # sentence arrives — so the first audio plays before Gemini
+                # sentence arrives — so the first audio plays before the LLM
                 # has finished generating the full response.
                 response_gen = self.llm.stream_response(
                     prompt=text,
@@ -344,8 +294,8 @@ def main() -> None:
 ╔══════════════════════════════════════════════════════════════════╗
 ║        RASPBERRY PI 5 — MULTIMODAL VOICE ASSISTANT               ║
 ║                                                                  ║
-║  Wake Word  →  Audio + Camera (parallel)  →  Whisper STT (Pi 5)  ║
-║             →  Gemini Vision + Text       →  Orpheus TTS (RUBIK)  ║
+║  Wake Word  →  Audio  →  Whisper STT (Pi 5)                      ║
+║             →  Dolphin (RUBIK) / Gemini Vision  →  ElevenLabs TTS ║
 ║                                                                  ║
 ║  Hardware:  ReSpeaker v3.0  |  Arducam IMX708 (Camera Module 3)  ║
 ╚══════════════════════════════════════════════════════════════════╝
