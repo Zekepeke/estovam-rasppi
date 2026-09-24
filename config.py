@@ -49,8 +49,8 @@ RECORDING_CHUNK_MS:     int   = 100   # Audio chunk size in milliseconds
 # =============================================================================
 # RUBIK Pi 3  (AI coprocessor — Qualcomm QCS6490, Adreno 643 GPU)
 # =============================================================================
-RUBIKPI_HOST:     str = "http://192.168.4.20"
-RUBIKPI_LLM_PORT: int = 8080   # llama-server OpenAI-compat  (POST /v1/chat/completions)
+RUBIKPI_HOST:     str = "http://100.116.151.71"
+RUBIKPI_LLM_PORT: int = 8080  # llama-server OpenAI-compat  (POST /v1/chat/completions)
 RUBIKPI_TTS_PORT: int = 8081   # Orpheus-3B TTS server       (POST /synthesize)
 
 # =============================================================================
