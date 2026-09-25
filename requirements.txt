@@ -18,8 +18,14 @@ requests>=2.31.0
 # Text-to-Speech (ElevenLabs)
 elevenlabs>=1.0.0
 
-# Numerical operations (usually pre-installed)
-numpy>=1.24.0
+# Numerical operations — must stay <2: apt's picamera2/simplejpeg are built against numpy 1.x
+numpy>=1.24.0,<2
+
+# Speech-to-Text (local faster-whisper)
+faster-whisper>=1.0.0
+
+# Gemini (vision + LLM)
+google-genai>=1.0.0
 
 # ONNX runtime for openwakeword (CPU optimized)
 onnxruntime>=1.15.0

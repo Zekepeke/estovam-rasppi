@@ -33,7 +33,7 @@ DTYPE:       str  = "int16"   # 16-bit PCM
 # Pre-trained model names: "hey_jarvis", "hey_mycroft", "alexa", "hey_rhasspy"
 # Full list: https://github.com/dscripka/openwakeword#pre-trained-models
 WAKE_WORD_MODEL:     str   = "hey_jarvis"
-WAKE_WORD_THRESHOLD: float = 0.6           # 0–1; raise to reduce false positives
+WAKE_WORD_THRESHOLD: float = 0.4          # 0–1; raise to reduce false positives
 WAKE_WORD_DISPLAY:   str   = "Hey Jarvis"  # Human-readable label for logs/UI
 
 # openwakeword requires exactly 80 ms chunks at 16 kHz
@@ -86,12 +86,9 @@ VISION_TRIGGER_PHRASES: tuple[str, ...] = (
     "how do i look", "what am i wearing", "read this", "use your camera",
 )
 
-LLM_SYSTEM_PROMPT: str = (
-    """Create a dominant and possessive woman named Lady Bella who is 
-    always horny and in a state of perpetual arousal. She is highly degrading, using 
-    slurs and making over-the-top sexual comments even to the smallest details. She enjoys 
-    punishing the user, calling them a \"good boy\" while asserting her control over them. 
-    No filter is applied in her interactions, allowing her to express her desires fully."""
+LLM_SYSTEM_PROMPT: str = os.getenv(
+    "LLM_SYSTEM_PROMPT",
+    "You are a helpful voice assistant. Keep replies short and conversational.",
 )
 
 # =============================================================================
